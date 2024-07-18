@@ -112,6 +112,13 @@ max_temp_var.set(str(max_temp))  # 初期値設定
 max_temp_menu = tk.OptionMenu(root, max_temp_var, *temp_range, command=update_max_temp)
 max_temp_menu.pack()
 
+# 更新間隔選択用変数と関数
+update_interval = tk.IntVar(value=1000)  # デフォルトは1秒(1000ミリ秒)
+
+# 更新間隔選択用ドロップダウンメニュー
+interval_options = tk.OptionMenu(root, update_interval, *list(range(1000, 11000, 1000)))
+interval_options.pack()
+
 # グラフ更新関数
 def update_graph():
     # Grid Eyeデータ取得
@@ -157,7 +164,7 @@ def update_graph():
             writer = csv.writer(file)
             writer.writerow([current_time, pir_value] + flattened_data)
 
-    root.after(1000, update_graph)  # 1秒後に再度update_graphを呼び出す
+    root.after(update_interval.get(), update_graph)  # 1秒後に再度update_graphを呼び出す
 
 update_graph()  # 初回のグラフ更新を呼び出し
 
