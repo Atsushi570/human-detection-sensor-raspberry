@@ -1,7 +1,10 @@
+import os
 import time
+import csv
 from datetime import datetime, timedelta
 import RPi.GPIO as GPIO
 import tkinter as tk
+from tkinter import StringVar
 import numpy as np
 import matplotlib.dates as mdates
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -50,6 +53,65 @@ canvas_widget_pir.pack(fill=tk.BOTH, expand=True)
 times = []
 pir_values = []
 
+# 記録状態を管理する変数
+is_recording = False
+csv_file_path = None
+start_time = None
+
+# Grid Eyeの縦軸初期値
+min_temp = 28  # 初期Min温度
+max_temp = 32  # 初期Max温度
+
+# CSVファイルに保存するための関数
+def start_recording():
+    global is_recording, start_time, csv_file_path
+    is_recording = True
+    start_time = datetime.now().strftime("%Y%m%d_%H%M%S")  # 開始時刻
+    # ファイル名に開始時刻を含む
+    csv_file_path = './out/data_{}.csv'.format(start_time)
+    with open(csv_file_path, 'w', newline='') as file:
+        writer = csv.writer(file)
+        headers = ['Time', 'PIR State'] + ['Pixel_{}_{}'.format(i, j) for i in range(8) for j in range(8)]
+        writer.writerow(headers)
+    recording_status_label.config(text="記録中...") 
+
+def stop_recording():
+    global is_recording, csv_file_path
+    is_recording = False
+    recording_status_label.config(text="記録待機中") 
+
+def update_min_temp(*args):
+    global min_temp
+    min_temp = int(min_temp_var.get())
+
+def update_max_temp(*args):
+    global max_temp
+    max_temp = int(max_temp_var.get())
+
+
+# ボタンの追加
+record_start_button = tk.Button(root, text='記録開始', command=start_recording)
+record_start_button.pack()
+
+record_stop_button = tk.Button(root, text='記録停止', command=stop_recording)
+record_stop_button.pack()
+
+# 記録状態ラベルの追加
+recording_status_label = tk.Label(root, text="記録待機中")
+recording_status_label.pack()
+
+# 温度範囲選択用セレクトボックス
+temp_range = list(range(0, 41))
+min_temp_var = StringVar(root)
+min_temp_var.set(str(min_temp))  # 初期値設定
+min_temp_menu = tk.OptionMenu(root, min_temp_var, *temp_range, command=update_min_temp)
+min_temp_menu.pack()
+
+max_temp_var = StringVar(root)
+max_temp_var.set(str(max_temp))  # 初期値設定
+max_temp_menu = tk.OptionMenu(root, max_temp_var, *temp_range, command=update_max_temp)
+max_temp_menu.pack()
+
 # グラフ更新関数
 def update_graph():
     # Grid Eyeデータ取得
@@ -61,14 +123,14 @@ def update_graph():
     ax_grid_eye_org.draw_artist(grid_eye_image_org)
     ax_grid_eye_bicubic.draw_artist(grid_eye_image_bicubic)
 
-    # カラーバーの範囲を調整
-    grid_eye_image_org.set_clim(vmin=grid_eye_data.min(), vmax=grid_eye_data.max())
-    grid_eye_image_bicubic.set_clim(vmin=grid_eye_data.min(), vmax=grid_eye_data.max())
+    # カラーバーの範囲を固定
+    grid_eye_image_org.set_clim(vmin=min_temp, vmax=max_temp)
+    grid_eye_image_bicubic.set_clim(vmin=min_temp, vmax=max_temp)
 
     canvas_grid_eye.draw()
 
     # PIRデータ更新
-    pir_value =GPIO.input(channel)
+    pir_value = GPIO.input(channel)
     current_time = datetime.now()
     pir_values.append(pir_value)
     times.append(current_time)
@@ -83,6 +145,16 @@ def update_graph():
     ax_pir.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
     figure_pir.autofmt_xdate()
     canvas_pir.draw()
+
+    # CSV記録が有効な場合、データを記録
+    if is_recording:
+        current_time = datetime.now()
+        pir_value = GPIO.input(channel)
+        grid_eye_data = grid_eye.pixels()
+        flattened_data = [item for sublist in grid_eye_data for item in sublist]
+        with open(csv_file_path, 'a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([current_time, pir_value] + flattened_data)
 
     root.after(1000, update_graph)  # 1秒後に再度update_graphを呼び出す
 
