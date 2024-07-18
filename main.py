@@ -143,6 +143,7 @@ def update_graph():
     ax_pir.clear()
     ax_pir.plot(times, pir_values, marker='o', linestyle='-')
     ax_pir.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+    ax_pir.set_ylim(0, 1)
     figure_pir.autofmt_xdate()
     canvas_pir.draw()
 
